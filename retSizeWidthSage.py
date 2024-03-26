@@ -29,32 +29,31 @@ def retWidthSize(cr1, cr2):
     ratio2 = db1544[:,:]/db756[:,:]
     nwidth,nsize = np.shape(ratio1)
 
-    arr_size = np.zeros(nwidth)
-    # array contains size for each width after first interpolation
-    arr_cr2 = np.zeros(nwidth)
+    maxlimtlist = [0.4623370358227051,0.4933011258380642,0.5423043221886346,0.5988716208480664,0.6461324506967127,\
+    0.6909306792526664,0.7301773484346972,0.7624463237628866,0.790480777987887,0.813549894883215,\
+    0.8328955276055265,0.8483986118142987,0.8620812098938048,0.8731909846682616,0.8818569720885591,\
+    0.8899216483683684,0.8953364181343885,0.9024386381387025,0.9079621452759095]
+    maxlimtlist = np.array(maxlimtlist)
+    nloop = (maxlimtlist < cr1).sum()
+
+    arr_size = np.zeros(nloop)
+    # array contains the size for each width after the first interpolation
+    arr_cr2 = np.zeros(nloop)
     # array contains color ratio 2 for each width when size is arr_size
 
-    for iw in range(nwidth):
+    for iw in range(nloop):
     # loop for width
         fsize = interpolate.interp1d(ratio1[iw,:],sizelist)
         # function: size = fw(color ratio 1)
         arr_size[iw] = fsize(cr1)
-#        arr_size[iw] = np.interp(cr1,ratio1[iw,:],sizelist)
-        # color ratio 1 -> size of each width
-#        print(ratio1[iw,:])
-#        print(sizelist)
-#        print(cr1, arr_size[iw])
-
-        #fcr2 = CubicSpline(sizelist, ratio2[iw,:])
-        # function: color ratio 2 = fw(size)
         arr_cr2[iw] = np.interp(arr_size[iw],sizelist, ratio2[iw,:])
         # size of each width -> color ratio 2 of each width
 
-        result_width = np.interp(cr2, arr_cr2, widthlist)
+        result_width = np.interp(cr2, arr_cr2, widthlist[:nloop])
         # function: width = fw(color ratio 2)
         # color ratio 2 -> width
-        
-        result_size = np.interp(result_width, widthlist, arr_size)
+
+        result_size = np.interp(result_width, widthlist[:nloop], arr_size)
 
 
 #    print(arr_size)
