@@ -14,10 +14,11 @@ def __init__(self):
     pass
 
 
-def retWidthSize(cr1, cr2):
+def retWidthSize(cr1, cr2, mix=0.05):
     """
     """
-    sizelist = [0.05, 0.07, 0.08, 0.1, 0.12, 0.14, 0.16, 0.18, 0.2, 0.23, 0.26, 0.3, 0.33, 0.36, 0.4, 0.43, 0.46, 0.5, 0.53, 0.56, 0.6, 0.7]
+#    sizelist = [0.05, 0.07, 0.08, 0.1, 0.12, 0.14, 0.16, 0.18, 0.2, 0.23, 0.26, 0.3, 0.33, 0.36, 0.4, 0.43, 0.46, 0.5, 0.53, 0.56, 0.6, 0.7]
+    sizelist = [0.01, 0.05, 0.07, 0.08, 0.1, 0.12, 0.14, 0.16, 0.18, 0.2, 0.23, 0.26, 0.3, 0.33, 0.36, 0.4, 0.43, 0.46, 0.5, 0.53, 0.56, 0.6, 0.65, 0.7, 0.75, 0.8, 0.9]
     sizelist = np.array(sizelist)
     # size applied in the LUT
     widthlist = np.arange(1.05,2.0,0.05)
@@ -28,32 +29,53 @@ def retWidthSize(cr1, cr2):
     ratio1 = db449[:,:]/db756[:,:]
     ratio2 = db1544[:,:]/db756[:,:]
     nwidth,nsize = np.shape(ratio1)
+#    print(nwidth,nsize)
+    # 19, 27
 
-    maxlimtlist = [0.4623370358227051,0.4933011258380642,0.5423043221886346,0.5988716208480664,0.6461324506967127,\
-    0.6909306792526664,0.7301773484346972,0.7624463237628866,0.790480777987887,0.813549894883215,\
-    0.8328955276055265,0.8483986118142987,0.8620812098938048,0.8731909846682616,0.8818569720885591,\
-    0.8899216483683684,0.8953364181343885,0.9024386381387025,0.9079621452759095]
-    maxlimtlist = np.array(maxlimtlist)
+    # mixing the LUT with large particles
+    ratio2mix = ratio2[0,-1]*mix+ratio2*(1-mix)
+    ratio1mix = ratio1[0,-1]*mix+ratio1*(1-mix)
+
+    maxlimtlist = np.zeros(nwidth)
+    for iw in range(nwidth):
+        maxlimtlist[iw] = np.nanmin(ratio1mix[iw,:])
+    # not all width curves are involved in the retrieval. Only CR1 > than the minimum of width array counts in nloop
     nloop = (maxlimtlist < cr1).sum()
 
+#    print('nloop=',nloop)
+    # if the CR value is too low than LUT, then skip this pixel and return.
+    if nloop <= 2: return 0, 0
+
     arr_size = np.zeros(nloop)
-    # array contains the size for each width after the first interpolation
+    # array contains size for each width after first interpolation
     arr_cr2 = np.zeros(nloop)
     # array contains color ratio 2 for each width when size is arr_size
 
     for iw in range(nloop):
     # loop for width
-        fsize = interpolate.interp1d(ratio1[iw,:],sizelist)
+        fsize = interpolate.interp1d(ratio1mix[iw,:],sizelist)
         # function: size = fw(color ratio 1)
+#        print(widthlist[iw], cr1, ratio1[iw,:])
         arr_size[iw] = fsize(cr1)
-        arr_cr2[iw] = np.interp(arr_size[iw],sizelist, ratio2[iw,:])
-        # size of each width -> color ratio 2 of each width
+#        print('interp 1')
+#        arr_size[iw] = np.interp(cr1,ratio1[iw,:],sizelist)
+        # color ratio 1 -> size of each width
+#        print(ratio1[iw,:])
+#        print(sizelist)
+#        print(cr1, arr_size[iw])
 
-        result_width = np.interp(cr2, arr_cr2, widthlist[:nloop])
+        #fcr2 = CubicSpline(sizelist, ratio2[iw,:])
+        # function: color ratio 2 = fw(size)
+        arr_cr2[iw] = np.interp(arr_size[iw],sizelist, ratio2mix[iw,:])
+        # size of each width -> color ratio 2 of each width
+#        print('interp 2')
+
+        ret_width = np.interp(cr2, arr_cr2, widthlist[:nloop])
         # function: width = fw(color ratio 2)
         # color ratio 2 -> width
-
-        result_size = np.interp(result_width, widthlist[:nloop], arr_size)
+#        print('interp 3')
+        
+        ret_size = np.interp(ret_width, widthlist[:nloop], arr_size)
 
 
 #    print(arr_size)
@@ -61,7 +83,7 @@ def retWidthSize(cr1, cr2):
 #    print(result_width)
 #    print(result_size)
 
-    return result_width, result_size
+    return ret_width, ret_size
 
 def loadDat(file00):
     """
@@ -104,10 +126,10 @@ def loadDat(file00):
     cr2 = ds_ext[:,band3].squeeze()/ds_ext[:,band2].squeeze()
 
     cr1[cr1 >= 5] = np.nan
-    cr1[cr1 <= 0] = np.nan
+    cr1[cr1 <= 0.5] = np.nan
     cr1[cr1 == 1] = np.nan
     cr2[cr2 >= 1] = np.nan
-    cr2[cr2 <= 0] = np.nan
+    cr2[cr2 <= 0.1] = np.nan
 
 #    print(cr1)
 #    print(cr2)
@@ -117,16 +139,20 @@ def loadDat(file00):
 
 if __name__ == "__main__":
 
-#    retWidthSize(1.5, 0.3)
+    retWidthSize(1.5, 0.3)
     ds_alt = np.arange(0,90/2,0.5)
     datCR1, datCR2 = loadDat('./../dat/g3b.ssp.2020010111SSv05.30')
-    for i in range(len(datCR1)):
-        if (datCR1[i] > 0 and datCR2[i] > 0):
-            print('altitude: ',ds_alt[i], datCR1[i], datCR2[i])
-            result_width, result_size = retWidthSize(datCR1[i], datCR2[i])
-            print(result_width, result_size)
+    result_width = np.zeros(len(datCR1))
+    result_size = np.zeros(len(datCR1))
 
+    mixlist = [0, 0.01, 0.03, 0.05, 0.07, 0.1, 0.15, 0.2]
 
-
-
-
+    for imix in range(len(mixlist)):
+        for i in range(len(datCR1)):
+            if (datCR1[i] > 0 and datCR2[i] > 0):
+#            print('altitude: ',ds_alt[i], 'CR1:',datCR1[i],'CR2:', datCR2[i])
+                result_width[i], result_size[i] = retWidthSize(datCR1[i], datCR2[i], mixlist[imix])
+        print('mix ratio=', mixlist[imix])
+        print(result_width)
+        print(result_size)
+#            print('width = ',result_width,'size = ', result_size)
